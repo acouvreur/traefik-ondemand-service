@@ -1,6 +1,5 @@
-FROM golang:1.15.3-alpine AS build
+FROM golang:1.17-alpine AS build
 
-ENV APP_NAME ondemand-service
 ENV PORT 10000
 
 COPY . /go/src/ondemand-service
