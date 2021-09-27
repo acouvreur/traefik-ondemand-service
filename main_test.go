@@ -4,21 +4,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/docker/docker/client"
 )
 
 type ScalerMock struct {
 	isUp bool
 }
 
-func (s ScalerMock) IsUp(client *client.Client, name string) bool {
+func (s ScalerMock) IsUp(name string) bool {
 	return s.isUp
 }
 
-func (ScalerMock) ScaleUp(client *client.Client, name string, replicas *uint64) {}
+func (ScalerMock) ScaleUp(name string) error { return nil }
 
-func (ScalerMock) ScaleDown(client *client.Client, name string) {}
+func (ScalerMock) ScaleDown(name string) error { return nil }
 
 func TestOndemand_ServeHTTP(t *testing.T) {
 	testCases := []struct {
@@ -52,7 +50,7 @@ func TestOndemand_ServeHTTP(t *testing.T) {
 			request := httptest.NewRequest("GET", "/?name=whoami&timeout=5m", nil)
 			responseRecorder := httptest.NewRecorder()
 
-			onDemandHandler := onDemand(nil, test.scaler)
+			onDemandHandler := onDemand(test.scaler)
 			onDemandHandler(responseRecorder, request)
 
 			body := responseRecorder.Body.String()

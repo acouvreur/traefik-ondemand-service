@@ -1,9 +1,10 @@
 package scaler
 
-import "github.com/docker/docker/client"
+var onereplicas = uint64(1)
+var zeroreplicas = uint64(0)
 
 type Scaler interface {
-	ScaleUp(client *client.Client, name string, replicas *uint64)
-	ScaleDown(client *client.Client, name string)
-	IsUp(client *client.Client, name string) bool
+	ScaleUp(name string) error
+	ScaleDown(name string) error
+	IsUp(name string) bool
 }

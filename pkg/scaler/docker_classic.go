@@ -10,71 +10,85 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type DockerClassicScaler struct{}
+type DockerClassicScaler struct {
+	Client client.ContainerAPIClient
+}
 
-func (DockerClassicScaler) ScaleUp(client *client.Client, name string, replicas *uint64) {
-	log.Infof("Scaling up %s to %d", name, *replicas)
-	ctx := context.Background()
-	container, err := GetContainerByName(client, name, ctx)
-
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
-
-	err = client.ContainerStart(ctx, container.ID, types.ContainerStartOptions{})
-
-	if err != nil {
-		log.Error(err.Error())
-		return
+func NewDockerClassicScaler(client client.ContainerAPIClient) *DockerClassicScaler {
+	return &DockerClassicScaler{
+		Client: client,
 	}
 }
 
-func (DockerClassicScaler) ScaleDown(client *client.Client, name string) {
+func (scaler *DockerClassicScaler) ScaleUp(name string) error {
+	log.Infof("Scaling up %s to %d", name, onereplicas)
+	ctx := context.Background()
+	container, err := scaler.GetContainerByName(name, ctx)
+
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+
+	err = scaler.Client.ContainerStart(ctx, container.ID, types.ContainerStartOptions{})
+
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (scaler *DockerClassicScaler) ScaleDown(name string) error {
 	log.Infof("Scaling down %s to 0", name)
 	ctx := context.Background()
-	container, err := GetContainerByName(client, name, ctx)
+	container, err := scaler.GetContainerByName(name, ctx)
 
 	if err != nil {
 		log.Error(err.Error())
-		return
+		return err
 	}
 
-	err = client.ContainerStop(ctx, container.ID, nil)
+	err = scaler.Client.ContainerStop(ctx, container.ID, nil)
 
 	if err != nil {
 		log.Error(err.Error())
-		return
+		return err
 	}
+	return nil
 }
 
-func (DockerClassicScaler) IsUp(client *client.Client, name string) bool {
+func (scaler *DockerClassicScaler) IsUp(name string) bool {
 	ctx := context.Background()
-	container, err := GetContainerByName(client, name, ctx)
+	container, err := scaler.GetContainerByName(name, ctx)
 
 	if err != nil {
 		log.Error(err.Error())
 		return false
 	}
 
-	spec, err := client.ContainerInspect(ctx, container.ID)
+	spec, err := scaler.Client.ContainerInspect(ctx, container.ID)
 
 	if err != nil {
 		log.Error(err.Error())
 		return false
+	}
+
+	if spec.State.Health != nil {
+		return spec.State.Health.Status == "healthy"
 	}
 
 	return spec.State.Running
 }
 
-func GetContainerByName(client *client.Client, name string, ctx context.Context) (*types.Container, error) {
+func (scaler *DockerClassicScaler) GetContainerByName(name string, ctx context.Context) (*types.Container, error) {
 	opts := types.ContainerListOptions{
 		All:     true,
 		Filters: filters.NewArgs(),
 	}
 	opts.Filters.Add("name", name)
 
-	containers, err := client.ContainerList(ctx, opts)
+	containers, err := scaler.Client.ContainerList(ctx, opts)
 
 	if err != nil {
 		return nil, err
