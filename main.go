@@ -3,13 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/acouvreur/traefik-ondemand-service/pkg/scaler"
 	"github.com/docker/docker/client"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/dc0d/tinykv.v4"
 )
 
@@ -52,7 +52,12 @@ func onDemand(scaler scaler.Scaler) func(w http.ResponseWriter, r *http.Request)
 
 	store := tinykv.New(time.Second*20, func(key string, _ interface{}) {
 		// Auto scale down after timeout
-		scaler.ScaleDown(key)
+		err := scaler.ScaleDown(key)
+
+		if err != nil {
+			log.Warnf("error scaling down %s: %s", key, err.Error())
+		}
+
 	})
 
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -92,7 +97,12 @@ func onDemand(scaler scaler.Scaler) func(w http.ResponseWriter, r *http.Request)
 					State: "starting",
 					Name:  name,
 				}
-				scaler.ScaleUp(name)
+				err := scaler.ScaleUp(name)
+
+				if err != nil {
+					ServeHTTPInternalError(rw, err)
+					return
+				}
 			}
 		}
 
