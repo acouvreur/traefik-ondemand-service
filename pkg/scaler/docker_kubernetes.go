@@ -58,7 +58,7 @@ func (scaler *KubernetesScaler) ScaleUp(name string) error {
 		return err
 	}
 
-	log.Infof("Scaling up %s %s in namespace %s to %d", config.Kind, config.Name, config.Namespace, onereplicas)
+	log.Infof("Scaling up %s %s in namespace %s to %d", config.Kind, config.Name, config.Namespace, config.Replicas)
 	ctx := context.Background()
 
 	switch config.Kind {
