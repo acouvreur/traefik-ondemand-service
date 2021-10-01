@@ -16,6 +16,9 @@
   <a href="https://github.com/acouvreur/traefik-ondemand-service/releases">
     <img src="https://img.shields.io/github/release/acouvreur/traefik-ondemand-service/all.svg?style=flat-square">
   </a>
+  <a href="https://github.com/acouvreur/traefik-ondemand-service/releases">
+    <img src="https://img.shields.io/docker/image-size/acouvreur/traefik-ondemand-service?style=flat-square">
+  </a>
 </p>
 
 ## Features
@@ -39,6 +42,9 @@
 | `kubernetesMode` | true,false (default false) | Enable/Disable Kubernetes mode. Used to determine the scaler implementation. |
 
 ### Docker
+
+- Docker Hub `acouvreur/traefik-ondemand-service`
+- Ghcr `ghcr.io/acouvreur/traefik-ondemand-service`
 
 `docker run -v /var/run/docker.sock:/var/run/docker.sock -p 10000:10000
 ghcr.io/acouvreur/traefik-ondemand-service:latest --swarmode=true`
