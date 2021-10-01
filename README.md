@@ -22,6 +22,7 @@
 
 - Support for Docker containers
 - Support for Docker swarm mode, scale services
+- Support for Kubernetes Deployments
 - Start your container/service on the first request
 - Dynamic loading page (cloudflare or grafana cloud style)
 - Automatic scale to zero after configured timeout upon last request the service received
@@ -30,15 +31,21 @@
 
 ### CLI
 
-`./traefik-ondemand-service --swarmMode=true`
+`./traefik-ondemand-service --swarmMode=true --kubernetesMode=false`
 
 | Argument    | Value             | Description                                                             |
 | ----------- | ----------------- | ----------------------------------------------------------------------- |
 | `swarmMode` | true,false (default true) | Enable/Disable swarm mode. Used to determine the scaler implementation. |
+| `kubernetesMode` | true,false (default false) | Enable/Disable Kubernetes mode. Used to determine the scaler implementation. |
 
 ### Docker
 
-`docker run -v /var/run/docker.sock:/var/run/docker.sock -p 10000:10000 ghcr.io/acouvreur/traefik-ondemand-service:latest --swarmode=true`
+`docker run -v /var/run/docker.sock:/var/run/docker.sock -p 10000:10000
+ghcr.io/acouvreur/traefik-ondemand-service:latest --swarmode=true`
+
+### Kubernetes
+
+see <a href="https://github.com/acouvreur/traefik-ondemand-service/blob/main/KUBERNETES.md">KUBERNETES.md</a>
 
 ### API
 
