@@ -11,6 +11,8 @@ import (
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/dc0d/tinykv.v4"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var defaultTimeout = time.Second * 5
@@ -23,29 +25,50 @@ type OnDemandRequestState struct {
 func main() {
 
 	swarmMode := flag.Bool("swarmMode", true, "Enable swarm mode")
+	kubernetesMode := flag.Bool("kubernetesMode", false, "Enable Kubernetes mode")
 
 	flag.Parse()
 
-	dockerScaler := getDockerScaler(*swarmMode)
+	dockerScaler := getDockerScaler(*swarmMode, *kubernetesMode)
 
-	fmt.Printf("Server listening on port 10000, swarmMode: %t\n", *swarmMode)
+	fmt.Printf("Server listening on port 10000, swarmMode: %t, kubernetesMode: %t\n", *swarmMode, *kubernetesMode)
 	http.HandleFunc("/", onDemand(dockerScaler))
 	log.Fatal(http.ListenAndServe(":10000", nil))
 }
 
-func getDockerScaler(swarmMode bool) scaler.Scaler {
-	cli, err := client.NewClientWithOpts()
-	if err != nil {
-		log.Fatal(fmt.Errorf("%+v", "Could not connect to docker API"))
-	}
-	if swarmMode {
+func getDockerScaler(swarmMode, kubernetesMode bool) scaler.Scaler {
+	cliMode := !swarmMode && !kubernetesMode
+
+	switch {
+	case swarmMode:
+		cli, err := client.NewClientWithOpts()
+		if err != nil {
+			log.Fatal(fmt.Errorf("%+v", "Could not connect to docker API"))
+		}
 		return &scaler.DockerSwarmScaler{
 			Client: cli,
 		}
+	case cliMode:
+		cli, err := client.NewClientWithOpts()
+		if err != nil {
+			log.Fatal(fmt.Errorf("%+v", "Could not connect to docker API"))
+		}
+		return &scaler.DockerClassicScaler{
+			Client: cli,
+		}
+	case kubernetesMode:
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			log.Fatal(err)
+		}
+		client, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return scaler.NewKubernetesScaler(client)
 	}
-	return &scaler.DockerClassicScaler{
-		Client: cli,
-	}
+
+	panic("invalid mode")
 }
 
 func onDemand(scaler scaler.Scaler) func(w http.ResponseWriter, r *http.Request) {
