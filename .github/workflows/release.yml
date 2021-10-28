@@ -15,6 +15,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Set up Go 1.17
+        uses: actions/setup-go@v2
+        with:
+         go-version: ^1.17
+
       - name: Setup Node.js
         uses: actions/setup-node@v1
         with:
@@ -23,4 +28,6 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npx semantic-release -b main -p "@semantic-release/commit-analyzer" -p "@semantic-release/release-notes-generator" -p "@semantic-release/github"
+        run: |
+          npm i -G semantic-release @semantic-release/exec
+          npx semantic-release -b main
