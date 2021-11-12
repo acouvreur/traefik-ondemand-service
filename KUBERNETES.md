@@ -115,7 +115,6 @@ First we need to create a traefik middleware for that:
           timeout: 10m
 
 The delimiter in the name section is `_`. Parameters:   <KIND>_<NAMESPACE>_<NAME>_<REPLICACOUNT>
-Currently only the kind deployment is supported.
 
 ## Using the Middleware
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -16,17 +17,22 @@ import (
 const Delimiter = "_"
 
 type Config struct {
-	Kind      string // deployment
+	Kind      string // deployment or statefulset
 	Namespace string
 	Name      string
 	Replicas  int
 }
 
+type Workload interface {
+	GetScale(ctx context.Context, workloadName string, options metav1.GetOptions) (*autoscalingv1.Scale, error)
+	UpdateScale(ctx context.Context, workloadName string, scale *autoscalingv1.Scale, opts metav1.UpdateOptions) (*autoscalingv1.Scale, error)
+}
+
 func convertName(name string) (*Config, error) {
-	// name format deployment_namespace_name_replicas
+	// name format kind_namespace_name_replicas
 	s := strings.Split(name, Delimiter)
 	if len(s) < 4 {
-		return nil, errors.New("invalid name should be: deployment" + Delimiter + "namespace" + Delimiter + "name" + Delimiter + "replicas")
+		return nil, errors.New("invalid name should be: kind" + Delimiter + "namespace" + Delimiter + "name" + Delimiter + "replicas")
 	}
 	replicas, err := strconv.Atoi(s[3])
 	if err != nil {
@@ -61,34 +67,35 @@ func (scaler *KubernetesScaler) ScaleUp(name string) error {
 	log.Infof("Scaling up %s %s in namespace %s to %d", config.Kind, config.Name, config.Namespace, config.Replicas)
 	ctx := context.Background()
 
-	switch config.Kind {
-	case "deployment":
-		s, err := scaler.Client.AppsV1().Deployments(config.Namespace).
-			GetScale(ctx, config.Name, metav1.GetOptions{})
-		if err != nil {
-			log.Error(err.Error())
-			return err
-		}
+	var workload Workload
 
-		sc := *s
-		if sc.Spec.Replicas == 0 {
-			sc.Spec.Replicas = int32(config.Replicas)
-		} else {
-			log.Infof("Replicas for %s %s in namespace %s are already: %d", config.Kind, config.Name, config.Namespace, sc.Spec.Replicas)
-			return nil
-		}
-
-		_, err = scaler.Client.AppsV1().
-			Deployments(config.Namespace).
-			UpdateScale(ctx, config.Name, &sc, metav1.UpdateOptions{})
-
-		if err != nil {
-			log.Error(err.Error())
-			return err
-		}
-
-	default:
+	if config.Kind == "deployment" {
+		workload = scaler.Client.AppsV1().Deployments(config.Namespace)
+	} else if config.Kind == "statefulset" {
+		workload = scaler.Client.AppsV1().StatefulSets(config.Namespace)
+	} else {
 		return fmt.Errorf("unsupported kind %s", config.Kind)
+	}
+
+	s, err := workload.GetScale(ctx, config.Name, metav1.GetOptions{})
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+
+	sc := *s
+	if sc.Spec.Replicas == 0 {
+		sc.Spec.Replicas = int32(config.Replicas)
+	} else {
+		log.Infof("Replicas for %s %s in namespace %s are already: %d", config.Kind, config.Name, config.Namespace, sc.Spec.Replicas)
+		return nil
+	}
+
+	_, err = workload.UpdateScale(ctx, config.Name, &sc, metav1.UpdateOptions{})
+
+	if err != nil {
+		log.Error(err.Error())
+		return err
 	}
 
 	return nil
@@ -104,33 +111,35 @@ func (scaler *KubernetesScaler) ScaleDown(name string) error {
 	log.Infof("Scaling down %s %s in namespace %s to 0", config.Kind, config.Name, config.Namespace)
 	ctx := context.Background()
 
-	switch config.Kind {
-	case "deployment":
-		s, err := scaler.Client.AppsV1().Deployments(config.Namespace).
-			GetScale(ctx, config.Name, metav1.GetOptions{})
-		if err != nil {
-			log.Error(err.Error())
-			return err
-		}
+	var workload Workload
 
-		sc := *s
-		if sc.Spec.Replicas != 0 {
-			sc.Spec.Replicas = 0
-		} else {
-			log.Infof("Replicas for %s %s in namespace %s are already: 0", config.Kind, config.Name, config.Namespace)
-			return nil
-		}
-
-		_, err = scaler.Client.AppsV1().
-			Deployments(config.Namespace).
-			UpdateScale(ctx, config.Name, &sc, metav1.UpdateOptions{})
-
-		if err != nil {
-			log.Error(err.Error())
-			return err
-		}
-	default:
+	if config.Kind == "deployment" {
+		workload = scaler.Client.AppsV1().Deployments(config.Namespace)
+	} else if config.Kind == "statefulset" {
+		workload = scaler.Client.AppsV1().StatefulSets(config.Namespace)
+	} else {
 		return fmt.Errorf("unsupported kind %s", config.Kind)
+	}
+
+	s, err := workload.GetScale(ctx, config.Name, metav1.GetOptions{})
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+
+	sc := *s
+	if sc.Spec.Replicas != 0 {
+		sc.Spec.Replicas = 0
+	} else {
+		log.Infof("Replicas for %s %s in namespace %s are already: 0", config.Kind, config.Name, config.Namespace)
+		return nil
+	}
+
+	_, err = workload.UpdateScale(ctx, config.Name, &sc, metav1.UpdateOptions{})
+
+	if err != nil {
+		log.Error(err.Error())
+		return err
 	}
 
 	return nil
@@ -148,6 +157,18 @@ func (scaler *KubernetesScaler) IsUp(name string) bool {
 	switch config.Kind {
 	case "deployment":
 		d, err := scaler.Client.AppsV1().Deployments(config.Namespace).
+			Get(ctx, config.Name, metav1.GetOptions{})
+		if err != nil {
+			log.Error(err.Error())
+			return false
+		}
+		log.Infof("Status for %s %s in namespace %s is: AvailableReplicas %d, ReadyReplicas: %d ", config.Kind, config.Name, config.Namespace, d.Status.AvailableReplicas, d.Status.ReadyReplicas)
+
+		if d.Status.AvailableReplicas > 0 {
+			return true
+		}
+	case "statefulset":
+		d, err := scaler.Client.AppsV1().StatefulSets(config.Namespace).
 			Get(ctx, config.Name, metav1.GetOptions{})
 		if err != nil {
 			log.Error(err.Error())
