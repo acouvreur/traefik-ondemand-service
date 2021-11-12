@@ -164,7 +164,7 @@ func (scaler *KubernetesScaler) IsUp(name string) bool {
 		}
 		log.Infof("Status for %s %s in namespace %s is: AvailableReplicas %d, ReadyReplicas: %d ", config.Kind, config.Name, config.Namespace, d.Status.AvailableReplicas, d.Status.ReadyReplicas)
 
-		if d.Status.AvailableReplicas > 0 {
+		if d.Status.ReadyReplicas > 0 {
 			return true
 		}
 	case "statefulset":
@@ -176,7 +176,7 @@ func (scaler *KubernetesScaler) IsUp(name string) bool {
 		}
 		log.Infof("Status for %s %s in namespace %s is: AvailableReplicas %d, ReadyReplicas: %d ", config.Kind, config.Name, config.Namespace, d.Status.AvailableReplicas, d.Status.ReadyReplicas)
 
-		if d.Status.AvailableReplicas > 0 {
+		if d.Status.ReadyReplicas > 0 {
 			return true
 		}
 
