@@ -76,6 +76,8 @@ We have to create RBAC to allow the traefik-ondemand-service to access the kuber
       - apiGroups:
           - apps
         resources:
+          - statefulsets
+          - statefulsets/scale
           - deployments
           - deployments/scale
         verbs:
