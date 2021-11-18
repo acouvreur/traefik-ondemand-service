@@ -69,11 +69,12 @@ func (scaler *KubernetesScaler) ScaleUp(name string) error {
 
 	var workload Workload
 
-	if config.Kind == "deployment" {
+	switch config.Kind {
+	case "deployment":
 		workload = scaler.Client.AppsV1().Deployments(config.Namespace)
-	} else if config.Kind == "statefulset" {
+	case "statefulset":
 		workload = scaler.Client.AppsV1().StatefulSets(config.Namespace)
-	} else {
+	default:
 		return fmt.Errorf("unsupported kind %s", config.Kind)
 	}
 
@@ -113,11 +114,12 @@ func (scaler *KubernetesScaler) ScaleDown(name string) error {
 
 	var workload Workload
 
-	if config.Kind == "deployment" {
+	switch config.Kind {
+	case "deployment":
 		workload = scaler.Client.AppsV1().Deployments(config.Namespace)
-	} else if config.Kind == "statefulset" {
+	case "statefulset":
 		workload = scaler.Client.AppsV1().StatefulSets(config.Namespace)
-	} else {
+	default:
 		return fmt.Errorf("unsupported kind %s", config.Kind)
 	}
 
