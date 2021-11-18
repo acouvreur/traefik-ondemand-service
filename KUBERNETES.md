@@ -116,7 +116,9 @@ First we need to create a traefik middleware for that:
           serviceUrl: 'http://traefik-ondemand-service:10000'
           timeout: 10m
 
-The delimiter in the name section is `_`. Parameters:   <KIND>_<NAMESPACE>_<NAME>_<REPLICACOUNT>
+The format of the `name:` section is `<KIND>_<NAMESPACE>_<NAME>_<REPLICACOUNT>` where `_` is the delimiter.
+
+`KIND` can be either `deployment` or `statefulset`
 
 ## Using the Middleware
 
