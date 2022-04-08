@@ -3,6 +3,7 @@ package scaler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
@@ -84,7 +85,46 @@ func (scaler *DockerSwarmScaler) IsUp(name string) bool {
 		return false
 	}
 
-	return service.ServiceStatus.DesiredTasks > 0 && (service.ServiceStatus.DesiredTasks == service.ServiceStatus.RunningTasks)
+	return scaler.isServiceRunningFor(service, 5*time.Second)
+}
+
+func (scaler *DockerSwarmScaler) isServiceRunningFor(service *swarm.Service, duration time.Duration) bool {
+
+	if service.ServiceStatus.DesiredTasks == 0 {
+		return false
+	}
+
+	if service.ServiceStatus.DesiredTasks != service.ServiceStatus.RunningTasks {
+		return false
+	}
+
+	opts := types.TaskListOptions{
+		Filters: filters.NewArgs(),
+	}
+	opts.Filters.Add("desired-state", "running")
+	opts.Filters.Add("service", service.Spec.Name)
+
+	ctx := context.Background()
+	tasks, err := scaler.Client.TaskList(ctx, opts)
+	if err != nil {
+		log.Error(err.Error())
+		return false
+	}
+
+	if len(tasks) == 0 {
+		log.Error("No task found with filter desired-state=running and service=", service.Spec.Name)
+		return false
+	}
+
+	// Getting 503 first time a workload is woken up https://github.com/acouvreur/traefik-ondemand-service/issues/24
+	// Let the service be up for a given duration
+	for _, task := range tasks {
+		if time.Since(task.Status.Timestamp) < (time.Second * 5) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (scaler *DockerSwarmScaler) GetServiceByName(name string, ctx context.Context) (*swarm.Service, error) {
