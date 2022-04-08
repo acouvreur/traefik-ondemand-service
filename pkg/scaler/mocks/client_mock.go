@@ -57,3 +57,8 @@ func (client *ServiceAPIClientMock) ServiceList(ctx context.Context, options typ
 	args := client.Mock.Called(ctx, options)
 	return args.Get(0).([]swarm.Service), args.Error(1)
 }
+
+func (client *ServiceAPIClientMock) TaskList(ctx context.Context, options types.TaskListOptions) ([]swarm.Task, error) {
+	args := client.Mock.Called(ctx, options)
+	return args.Get(0).([]swarm.Task), args.Error(1)
+}
