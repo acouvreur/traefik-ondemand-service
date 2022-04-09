@@ -30,4 +30,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           npm i -G semantic-release @semantic-release/exec
-          npx semantic-release -b main
+          npx semantic-release
