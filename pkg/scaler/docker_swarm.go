@@ -21,7 +21,6 @@ func NewDockerSwarmScaler() *DockerSwarmScaler {
 }
 
 func (scaler *DockerSwarmScaler) ScaleUp(name string) error {
-	log.Infof("scaling up %s to %d", name, onereplicas)
 	ctx := context.Background()
 	service, err := scaler.GetServiceByName(name, ctx)
 
@@ -29,6 +28,12 @@ func (scaler *DockerSwarmScaler) ScaleUp(name string) error {
 		log.Error(err.Error())
 		return err
 	}
+
+	if *service.Spec.Mode.Replicated.Replicas == onereplicas {
+		log.Infof("%s already scaled up to %d", name, onereplicas)
+		return nil
+	}
+	log.Infof("scaling up %s to %d", name, onereplicas)
 
 	service.Spec.Mode.Replicated = &swarm.ReplicatedService{
 		Replicas: &onereplicas,
@@ -48,7 +53,6 @@ func (scaler *DockerSwarmScaler) ScaleUp(name string) error {
 }
 
 func (scaler *DockerSwarmScaler) ScaleDown(name string) error {
-	log.Infof("scaling down %s to 0", name)
 	ctx := context.Background()
 	service, err := scaler.GetServiceByName(name, ctx)
 
@@ -58,6 +62,12 @@ func (scaler *DockerSwarmScaler) ScaleDown(name string) error {
 	}
 
 	replicas := uint64(0)
+
+	if *service.Spec.Mode.Replicated.Replicas == replicas {
+		log.Infof("%s already scaled down to %d", name, replicas)
+		return nil
+	}
+	log.Infof("scaling down %s to %d", name, replicas)
 
 	service.Spec.Mode.Replicated = &swarm.ReplicatedService{
 		Replicas: &replicas,

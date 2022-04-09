@@ -80,6 +80,38 @@ func TestDockerSwarmScaler_ScaleUp(t *testing.T) {
 			tt.fields.Client.AssertExpectations(t)
 		})
 	}
+
+	t.Run("scale nginx service to 1 replica twice", func(t *testing.T) {
+		swarmMock := mocks.NewServiceAPIClientMock()
+
+		serviceList := []swarm.Service{
+			{
+				ID:   "nginx_service",
+				Meta: swarm.Meta{Version: swarm.Version{}},
+				Spec: swarm.ServiceSpec{
+					Mode: swarm.ServiceMode{
+						Replicated: &swarm.ReplicatedService{
+							Replicas: &zeroreplicas,
+						},
+					},
+				},
+			},
+		}
+
+		swarmMock.On("ServiceList", mock.Anything, mock.Anything).Return(serviceList, nil)
+		swarmMock.On("ServiceUpdate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(types.ServiceUpdateResponse{
+			Warnings: []string{},
+		}, nil)
+
+		scaler := &DockerSwarmScaler{
+			Client: swarmMock,
+		}
+
+		scaler.ScaleUp("nginx")
+		scaler.ScaleUp("nginx")
+
+		swarmMock.AssertNumberOfCalls(t, "ServiceUpdate", 1)
+	})
 }
 
 func TestDockerSwarmScaler_ScaleDown(t *testing.T) {
@@ -148,6 +180,37 @@ func TestDockerSwarmScaler_ScaleDown(t *testing.T) {
 			tt.fields.Client.AssertExpectations(t)
 		})
 	}
+	t.Run("scale nginx service to 0 replica twice", func(t *testing.T) {
+		swarmMock := mocks.NewServiceAPIClientMock()
+
+		serviceList := []swarm.Service{
+			{
+				ID:   "nginx_service",
+				Meta: swarm.Meta{Version: swarm.Version{}},
+				Spec: swarm.ServiceSpec{
+					Mode: swarm.ServiceMode{
+						Replicated: &swarm.ReplicatedService{
+							Replicas: &onereplicas,
+						},
+					},
+				},
+			},
+		}
+
+		swarmMock.On("ServiceList", mock.Anything, mock.Anything).Return(serviceList, nil)
+		swarmMock.On("ServiceUpdate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(types.ServiceUpdateResponse{
+			Warnings: []string{},
+		}, nil)
+
+		scaler := &DockerSwarmScaler{
+			Client: swarmMock,
+		}
+
+		scaler.ScaleDown("nginx")
+		scaler.ScaleDown("nginx")
+
+		swarmMock.AssertNumberOfCalls(t, "ServiceUpdate", 1)
+	})
 }
 
 func TestDockerSwarmScaler_IsUp(t *testing.T) {
