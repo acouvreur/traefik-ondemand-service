@@ -9,6 +9,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -166,7 +167,15 @@ func (scaler *KubernetesScaler) IsUp(name string) bool {
 		}
 		log.Infof("Status for %s %s in namespace %s is: AvailableReplicas %d, ReadyReplicas: %d ", config.Kind, config.Name, config.Namespace, d.Status.AvailableReplicas, d.Status.ReadyReplicas)
 
-		if d.Status.ReadyReplicas > 0 {
+		endpoint, err := scaler.Client.CoreV1().Endpoints(config.Namespace).
+			Get(ctx, config.Name, metav1.GetOptions{})
+
+		if err != nil {
+			log.Error(err.Error())
+			return false
+		}
+
+		if d.Status.ReadyReplicas > 0 && scaler.endpointHasAtLeastNReadyAddresses(endpoint, 1) {
 			return true
 		}
 	case "statefulset":
@@ -178,7 +187,15 @@ func (scaler *KubernetesScaler) IsUp(name string) bool {
 		}
 		log.Infof("Status for %s %s in namespace %s is: AvailableReplicas %d, ReadyReplicas: %d ", config.Kind, config.Name, config.Namespace, d.Status.AvailableReplicas, d.Status.ReadyReplicas)
 
-		if d.Status.ReadyReplicas > 0 {
+		endpoint, err := scaler.Client.CoreV1().Endpoints(config.Namespace).
+			Get(ctx, config.Name, metav1.GetOptions{})
+
+		if err != nil {
+			log.Error(err.Error())
+			return false
+		}
+
+		if d.Status.ReadyReplicas > 0 && scaler.endpointHasAtLeastNReadyAddresses(endpoint, 1) {
 			return true
 		}
 
@@ -188,4 +205,18 @@ func (scaler *KubernetesScaler) IsUp(name string) bool {
 	}
 
 	return false
+}
+
+func (scaler *KubernetesScaler) endpointHasAtLeastNReadyAddresses(endpoint *v1.Endpoints, n int) bool {
+
+	if len(endpoint.Subsets) == 0 {
+		return false
+	}
+
+	availableAddressesCount := 0
+	for _, subset := range endpoint.Subsets {
+		availableAddressesCount += len(subset.Addresses)
+	}
+
+	return availableAddressesCount > 0
 }
