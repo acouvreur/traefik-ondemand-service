@@ -15,8 +15,6 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var defaultTimeout = time.Second * 5
-
 type OnDemandRequestState struct {
 	State string `json:"state"`
 	Name  string `json:"name"`
