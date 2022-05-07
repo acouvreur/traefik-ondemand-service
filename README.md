@@ -30,24 +30,25 @@
 - Dynamic loading page (cloudflare or grafana cloud style)
 - Automatic scale to zero after configured timeout upon last request the service received
 - Support container/service healthcheck and will not redirect until service is healthy
+
 ## Usage
 
 ### CLI
 
 `./traefik-ondemand-service --swarmMode=true --kubernetesMode=false`
 
-| Argument    | Value             | Description                                                             |
-| ----------- | ----------------- | ----------------------------------------------------------------------- |
-| `swarmMode` | true,false (default true) | Enable/Disable swarm mode. Used to determine the scaler implementation. |
-| `kubernetesMode` | true,false (default false) | Enable/Disable Kubernetes mode. Used to determine the scaler implementation. |
+| Argument         | Value                              | Description                                                                                                                                                  |
+| ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `swarmMode`      | true,false (default true)          | Enable/Disable swarm mode. Used to determine the scaler implementation.                                                                                      |
+| `kubernetesMode` | true,false (default false)         | Enable/Disable Kubernetes mode. Used to determine the scaler implementation.                                                                                 |
+| `storagePath`    | path/to/storage/file (default nil) | Enables persistent storage, file will be used to load previous state upon starting and will sync the current content to memory into the file every 5 seconds |
 
 ### Docker
 
 - Docker Hub `acouvreur/traefik-ondemand-service`
 - Ghcr `ghcr.io/acouvreur/traefik-ondemand-service`
 
-`docker run -v /var/run/docker.sock:/var/run/docker.sock -p 10000:10000
-ghcr.io/acouvreur/traefik-ondemand-service:latest --swarmode=true`
+`docker run -v /var/run/docker.sock:/var/run/docker.sock -p 10000:10000 ghcr.io/acouvreur/traefik-ondemand-service:latest --swarmode=true`
 
 ### Kubernetes
 
