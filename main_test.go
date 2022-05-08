@@ -53,7 +53,7 @@ func TestOndemand_ServeHTTP(t *testing.T) {
 			request := httptest.NewRequest("GET", "/?name=whoami&timeout=5m", nil)
 			responseRecorder := httptest.NewRecorder()
 
-			store := tinykv.New(time.Second * 20)
+			store := tinykv.New[OnDemandRequestState](time.Second * 20)
 
 			onDemandHandler := onDemand(test.scaler, store)
 			onDemandHandler(responseRecorder, request)

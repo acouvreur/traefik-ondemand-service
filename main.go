@@ -33,7 +33,7 @@ func main() {
 
 	dockerScaler := getDockerScaler(*swarmMode, *kubernetesMode)
 
-	store := tinykv.New(time.Second*20, func(key string, _ interface{}) {
+	store := tinykv.New[OnDemandRequestState](time.Second*20, func(key string, _ OnDemandRequestState) {
 		// Auto scale down after timeout
 		err := dockerScaler.ScaleDown(key)
 
@@ -93,7 +93,7 @@ func getDockerScaler(swarmMode, kubernetesMode bool) scaler.Scaler {
 	panic("invalid mode")
 }
 
-func onDemand(scaler scaler.Scaler, store tinykv.KV) func(w http.ResponseWriter, r *http.Request) {
+func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(w http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 
 		name, err := getParam(r.URL.Query(), "name")
@@ -120,7 +120,7 @@ func onDemand(scaler scaler.Scaler, store tinykv.KV) func(w http.ResponseWriter,
 		requestState, exists := store.Get(name)
 
 		// 1. Check against the current state
-		if !exists || requestState.(OnDemandRequestState).State != "started" {
+		if !exists || requestState.State != "started" {
 			if scaler.IsUp(name) {
 				requestState = OnDemandRequestState{
 					State: "started",
@@ -144,13 +144,13 @@ func onDemand(scaler scaler.Scaler, store tinykv.KV) func(w http.ResponseWriter,
 		store.Put(name, requestState, tinykv.ExpiresAfter(timeout))
 
 		// 3. Serve depending on the current state
-		switch requestState.(OnDemandRequestState).State {
+		switch requestState.State {
 		case "starting":
-			ServeHTTPRequestState(rw, requestState.(OnDemandRequestState))
+			ServeHTTPRequestState(rw, requestState)
 		case "started":
-			ServeHTTPRequestState(rw, requestState.(OnDemandRequestState))
+			ServeHTTPRequestState(rw, requestState)
 		default:
-			ServeHTTPInternalError(rw, fmt.Errorf("unknown state %s", requestState.(OnDemandRequestState).State))
+			ServeHTTPInternalError(rw, fmt.Errorf("unknown state %s", requestState.State))
 		}
 	}
 }
