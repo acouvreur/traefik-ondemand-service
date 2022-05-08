@@ -8,7 +8,7 @@ WORKDIR /go/src/ondemand-service
 
 ARG TARGETOS
 ARG TARGETARCH
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /go/bin/ondemand-service
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -buildvcs=false -o /go/bin/ondemand-service
 
 FROM alpine
 EXPOSE 10000
