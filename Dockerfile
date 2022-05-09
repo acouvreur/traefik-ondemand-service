@@ -1,4 +1,4 @@
-FROM golang:1.17-alpine AS build
+FROM golang:1.18-alpine AS build
 
 ENV CGO_ENABLED=0
 ENV PORT 10000
@@ -8,7 +8,7 @@ WORKDIR /go/src/ondemand-service
 
 ARG TARGETOS
 ARG TARGETARCH
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /go/bin/ondemand-service
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -buildvcs=false -o /go/bin/ondemand-service
 
 FROM alpine
 EXPOSE 10000

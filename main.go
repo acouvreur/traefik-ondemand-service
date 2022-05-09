@@ -1,21 +1,22 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
+	"github.com/acouvreur/tinykv"
 	"github.com/acouvreur/traefik-ondemand-service/pkg/scaler"
+	"github.com/acouvreur/traefik-ondemand-service/pkg/storage"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/dc0d/tinykv.v4"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
-
-var defaultTimeout = time.Second * 5
 
 type OnDemandRequestState struct {
 	State string `json:"state"`
@@ -26,13 +27,34 @@ func main() {
 
 	swarmMode := flag.Bool("swarmMode", true, "Enable swarm mode")
 	kubernetesMode := flag.Bool("kubernetesMode", false, "Enable Kubernetes mode")
+	storagePath := flag.String("storagePath", "", "Enable persistent storage")
 
 	flag.Parse()
 
 	dockerScaler := getDockerScaler(*swarmMode, *kubernetesMode)
 
+	store := tinykv.New[OnDemandRequestState](time.Second*20, func(key string, _ OnDemandRequestState) {
+		// Auto scale down after timeout
+		err := dockerScaler.ScaleDown(key)
+
+		if err != nil {
+			log.Warnf("error scaling down %s: %s", key, err.Error())
+		}
+	})
+
+	if storagePath != nil && len(*storagePath) > 0 {
+		file, err := os.OpenFile(*storagePath, os.O_RDWR|os.O_CREATE, 0755)
+
+		if err != nil {
+			panic(err)
+		}
+
+		json.NewDecoder(file).Decode(store)
+		storage.New(file, time.Second*5, store)
+	}
+
 	fmt.Printf("Server listening on port 10000, swarmMode: %t, kubernetesMode: %t\n", *swarmMode, *kubernetesMode)
-	http.HandleFunc("/", onDemand(dockerScaler))
+	http.HandleFunc("/", onDemand(dockerScaler, store))
 	log.Fatal(http.ListenAndServe(":10000", nil))
 }
 
@@ -71,18 +93,7 @@ func getDockerScaler(swarmMode, kubernetesMode bool) scaler.Scaler {
 	panic("invalid mode")
 }
 
-func onDemand(scaler scaler.Scaler) func(w http.ResponseWriter, r *http.Request) {
-
-	store := tinykv.New(time.Second*20, func(key string, _ interface{}) {
-		// Auto scale down after timeout
-		err := scaler.ScaleDown(key)
-
-		if err != nil {
-			log.Warnf("error scaling down %s: %s", key, err.Error())
-		}
-
-	})
-
+func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(w http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 
 		name, err := getParam(r.URL.Query(), "name")
@@ -109,7 +120,7 @@ func onDemand(scaler scaler.Scaler) func(w http.ResponseWriter, r *http.Request)
 		requestState, exists := store.Get(name)
 
 		// 1. Check against the current state
-		if !exists || requestState.(OnDemandRequestState).State != "started" {
+		if !exists || requestState.State != "started" {
 			if scaler.IsUp(name) {
 				requestState = OnDemandRequestState{
 					State: "started",
@@ -133,13 +144,13 @@ func onDemand(scaler scaler.Scaler) func(w http.ResponseWriter, r *http.Request)
 		store.Put(name, requestState, tinykv.ExpiresAfter(timeout))
 
 		// 3. Serve depending on the current state
-		switch requestState.(OnDemandRequestState).State {
+		switch requestState.State {
 		case "starting":
-			ServeHTTPRequestState(rw, requestState.(OnDemandRequestState))
+			ServeHTTPRequestState(rw, requestState)
 		case "started":
-			ServeHTTPRequestState(rw, requestState.(OnDemandRequestState))
+			ServeHTTPRequestState(rw, requestState)
 		default:
-			ServeHTTPInternalError(rw, fmt.Errorf("unknown state %s", requestState.(OnDemandRequestState).State))
+			ServeHTTPInternalError(rw, fmt.Errorf("unknown state %s", requestState.State))
 		}
 	}
 }

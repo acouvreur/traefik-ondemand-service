@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/acouvreur/tinykv"
 )
 
 type ScalerMock struct {
@@ -50,7 +53,9 @@ func TestOndemand_ServeHTTP(t *testing.T) {
 			request := httptest.NewRequest("GET", "/?name=whoami&timeout=5m", nil)
 			responseRecorder := httptest.NewRecorder()
 
-			onDemandHandler := onDemand(test.scaler)
+			store := tinykv.New[OnDemandRequestState](time.Second * 20)
+
+			onDemandHandler := onDemand(test.scaler, store)
 			onDemandHandler(responseRecorder, request)
 
 			body := responseRecorder.Body.String()
