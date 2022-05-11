@@ -53,10 +53,8 @@ github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb0
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/PuerkitoBio/purell v1.1.1/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdkoq3SwY9Y+13GIhn11/XLaGBb4BfwItxLd5jeuXE=
-github.com/acouvreur/tinykv v0.0.0-20220507160929-89d3a054e3e2 h1:HnwAP/eK2AGEdE5TUg6nKqGdVisyO1gR9tNwhGlZC70=
-github.com/acouvreur/tinykv v0.0.0-20220507160929-89d3a054e3e2/go.mod h1:ECs3aPB6f6dVXSV6GM+UiN3/0iSttb/5iS3szwp9XeY=
-github.com/acouvreur/tinykv v0.0.0-20220508151744-f4c55f3d44f6 h1:NDB3TrHyWDCax3qp7e+G98NbehXm4Bs0hfNvmxmHNp4=
-github.com/acouvreur/tinykv v0.0.0-20220508151744-f4c55f3d44f6/go.mod h1:ECs3aPB6f6dVXSV6GM+UiN3/0iSttb/5iS3szwp9XeY=
+github.com/acouvreur/tinykv v0.0.0-20220511194520-45fc921a4a83 h1:uNIfP86bHqLfpZAZ3ashsCRABfh9otkBgdeI4niG3WY=
+github.com/acouvreur/tinykv v0.0.0-20220511194520-45fc921a4a83/go.mod h1:ECs3aPB6f6dVXSV6GM+UiN3/0iSttb/5iS3szwp9XeY=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a/go.mod h1:lB+ZfQJz7igIIfQNfa7Ml4HSf2uFQQRzpGGRXenZAgY=

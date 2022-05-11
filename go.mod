@@ -18,7 +18,7 @@ require (
 )
 
 require (
-	github.com/acouvreur/tinykv v0.0.0-20220508151744-f4c55f3d44f6
+	github.com/acouvreur/tinykv v0.0.0-20220511194520-45fc921a4a83
 	k8s.io/api v0.24.0
 )
 
