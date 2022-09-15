@@ -13,6 +13,9 @@ import (
 	"github.com/acouvreur/traefik-ondemand-service/pkg/scaler"
 	"github.com/acouvreur/traefik-ondemand-service/pkg/storage"
 	"github.com/docker/docker/client"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -22,6 +25,32 @@ type OnDemandRequestState struct {
 	State string `json:"state"`
 	Name  string `json:"name"`
 }
+
+var (
+	serviceStatusMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "service",
+			Name:      "status",
+			Help:      "Indicates if a service is starting, started or in an unknown state. When the service is scaled down this metric is deleted",
+		},
+		[]string{"service_name", "status"},
+	)
+	serviceScaleDownErrorMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "service",
+			Name:      "scale_down_error",
+			Help:      "Indicates whether a service scale down has failed",
+		},
+		[]string{"service_name"},
+	)
+	scaleDownErrorMetric = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "scaler",
+			Name:      "scale_down_errors",
+			Help:      "Indicates how many scale down errors occured",
+		},
+	)
+)
 
 func main() {
 
@@ -36,8 +65,12 @@ func main() {
 	store := tinykv.New[OnDemandRequestState](time.Second*20, func(key string, _ OnDemandRequestState) {
 		// Auto scale down after timeout
 		err := dockerScaler.ScaleDown(key)
-
+		serviceStatusMetric.Delete(prometheus.Labels{
+			"service_name": key,
+		})
 		if err != nil {
+			scaleDownErrorMetric.Inc()
+			serviceScaleDownErrorMetric.With(prometheus.Labels{"service_name": key}).Set(1)
 			log.Warnf("error scaling down %s: %s", key, err.Error())
 		}
 	})
@@ -54,6 +87,7 @@ func main() {
 	}
 
 	fmt.Printf("Server listening on port 10000, swarmMode: %t, kubernetesMode: %t\n", *swarmMode, *kubernetesMode)
+	http.Handle("/metrics", promhttp.Handler())
 	http.HandleFunc("/", onDemand(dockerScaler, store))
 	log.Fatal(http.ListenAndServe(":10000", nil))
 }
@@ -91,6 +125,24 @@ func getDockerScaler(swarmMode, kubernetesMode bool) scaler.Scaler {
 	}
 
 	panic("invalid mode")
+}
+
+type Status string
+
+const (
+	Starting Status = "Starting"
+	Started         = "Starting"
+	Unknown         = "Unknown"
+)
+
+func setStatusInMetric(metric prometheus.GaugeVec, status Status) {
+	for _, s := range []Status{Starting, Started, Unknown} {
+		if status == s {
+			metric.With(prometheus.Labels{"status": string(s)}).Set(1)
+		} else {
+			metric.With(prometheus.Labels{"status": string(s)}).Set(0)
+		}
+	}
 }
 
 func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(w http.ResponseWriter, r *http.Request) {
@@ -144,12 +196,18 @@ func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(
 		store.Put(name, requestState, tinykv.ExpiresAfter(timeout))
 
 		// 3. Serve depending on the current state
+		curried := serviceStatusMetric.MustCurryWith(prometheus.Labels{
+			"service_name": name,
+		})
 		switch requestState.State {
 		case "starting":
+			setStatusInMetric(*curried, "Starting")
 			ServeHTTPRequestState(rw, requestState)
 		case "started":
+			setStatusInMetric(*curried, "Started")
 			ServeHTTPRequestState(rw, requestState)
 		default:
+			setStatusInMetric(*curried, "Unknown")
 			ServeHTTPInternalError(rw, fmt.Errorf("unknown state %s", requestState.State))
 		}
 	}
