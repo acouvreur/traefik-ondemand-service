@@ -56,7 +56,7 @@ var (
 			Name:      "last_started_time",
 			Help:      "Indicates when the service was last started",
 		},
-		[]string{"service_name", "status"},
+		[]string{"service_name"},
 	)
 	serviceTimeout = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -64,7 +64,7 @@ var (
 			Name:      "timeout",
 			Help:      "Indicates the duration after which the service will be scaled down",
 		},
-		[]string{"service_name", "status"},
+		[]string{"service_name"},
 	)
 )
 
