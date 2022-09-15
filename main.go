@@ -10,11 +10,10 @@ import (
 	"time"
 
 	"github.com/acouvreur/tinykv"
+	"github.com/acouvreur/traefik-ondemand-service/pkg/metrics"
 	"github.com/acouvreur/traefik-ondemand-service/pkg/scaler"
 	"github.com/acouvreur/traefik-ondemand-service/pkg/storage"
 	"github.com/docker/docker/client"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
@@ -25,48 +24,6 @@ type OnDemandRequestState struct {
 	State string `json:"state"`
 	Name  string `json:"name"`
 }
-
-var (
-	serviceStatusMetric = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "service",
-			Name:      "status",
-			Help:      "Indicates if a service is starting, started or in an unknown state. When the service is scaled down this metric is deleted",
-		},
-		[]string{"service_name", "status"},
-	)
-	serviceScaleDownErrorMetric = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "service",
-			Name:      "scale_down_error",
-			Help:      "Indicates whether a service scale down has failed",
-		},
-		[]string{"service_name"},
-	)
-	scaleDownErrorMetric = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Namespace: "scaler",
-			Name:      "scale_down_errors",
-			Help:      "Indicates how many scale down errors occured",
-		},
-	)
-	serviceLastStartedTime = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "service",
-			Name:      "last_started_time",
-			Help:      "Indicates when the service was last started",
-		},
-		[]string{"service_name"},
-	)
-	serviceTimeout = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "service",
-			Name:      "timeout",
-			Help:      "Indicates the duration after which the service will be scaled down",
-		},
-		[]string{"service_name"},
-	)
-)
 
 func main() {
 
@@ -81,12 +38,9 @@ func main() {
 	store := tinykv.New[OnDemandRequestState](time.Second*20, func(key string, _ OnDemandRequestState) {
 		// Auto scale down after timeout
 		err := dockerScaler.ScaleDown(key)
-		serviceStatusMetric.Delete(prometheus.Labels{
-			"service_name": key,
-		})
+
 		if err != nil {
-			scaleDownErrorMetric.Inc()
-			serviceScaleDownErrorMetric.With(prometheus.Labels{"service_name": key}).Set(1)
+			metrics.OnScaleDownError(key)
 			log.Warnf("error scaling down %s: %s", key, err.Error())
 		}
 	})
@@ -143,24 +97,6 @@ func getDockerScaler(swarmMode, kubernetesMode bool) scaler.Scaler {
 	panic("invalid mode")
 }
 
-type Status string
-
-const (
-	Starting Status = "Starting"
-	Started         = "Started"
-	Unknown         = "Unknown"
-)
-
-func setStatusInMetric(metric prometheus.GaugeVec, status Status) {
-	for _, s := range []Status{Starting, Started, Unknown} {
-		if status == s {
-			metric.With(prometheus.Labels{"status": string(s)}).Set(1)
-		} else {
-			metric.With(prometheus.Labels{"status": string(s)}).Set(0)
-		}
-	}
-}
-
 func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(w http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 
@@ -210,26 +146,18 @@ func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(
 
 		// 2. Store the updated state
 		store.Put(name, requestState, tinykv.ExpiresAfter(timeout))
-		serviceLastStartedTime.With(prometheus.Labels{
-			"service_name": name,
-		}).SetToCurrentTime()
-		serviceTimeout.With(prometheus.Labels{
-			"service_name": name,
-		}).Set(float64(timeout))
-
+		metrics.OnStoreUpdate(name, timeout)
 		// 3. Serve depending on the current state
-		curried := serviceStatusMetric.MustCurryWith(prometheus.Labels{
-			"service_name": name,
-		})
+
 		switch requestState.State {
 		case "starting":
-			setStatusInMetric(*curried, "Starting")
+			metrics.OnServiceStateChange(name, metrics.Starting)
 			ServeHTTPRequestState(rw, requestState)
 		case "started":
-			setStatusInMetric(*curried, "Started")
+			metrics.OnServiceStateChange(name, metrics.Started)
 			ServeHTTPRequestState(rw, requestState)
 		default:
-			setStatusInMetric(*curried, "Unknown")
+			metrics.OnServiceStateChange(name, metrics.Unknown)
 			ServeHTTPInternalError(rw, fmt.Errorf("unknown state %s", requestState.State))
 		}
 	}
