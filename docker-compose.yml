@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   ondemand:
-    image: gchr.io/acouvreur/traefik-ondemand-service:latest
+    image: ghcr.io/acouvreur/traefik-ondemand-service:latest
     command:
       - --swarmMode=true
     volumes:
