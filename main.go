@@ -50,6 +50,22 @@ var (
 			Help:      "Indicates how many scale down errors occured",
 		},
 	)
+	serviceLastStartedTime = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "service",
+			Name:      "last_started_time",
+			Help:      "Indicates when the service was last started",
+		},
+		[]string{"service_name", "status"},
+	)
+	serviceTimeout = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "service",
+			Name:      "timeout",
+			Help:      "Indicates the duration after which the service will be scaled down",
+		},
+		[]string{"service_name", "status"},
+	)
 )
 
 func main() {
@@ -131,7 +147,7 @@ type Status string
 
 const (
 	Starting Status = "Starting"
-	Started         = "Starting"
+	Started         = "Started"
 	Unknown         = "Unknown"
 )
 
@@ -194,6 +210,12 @@ func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(
 
 		// 2. Store the updated state
 		store.Put(name, requestState, tinykv.ExpiresAfter(timeout))
+		serviceLastStartedTime.With(prometheus.Labels{
+			"service_name": name,
+		}).SetToCurrentTime()
+		serviceTimeout.With(prometheus.Labels{
+			"service_name": name,
+		}).Set(float64(timeout))
 
 		// 3. Serve depending on the current state
 		curried := serviceStatusMetric.MustCurryWith(prometheus.Labels{
