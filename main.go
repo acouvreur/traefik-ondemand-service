@@ -30,6 +30,7 @@ func main() {
 	swarmMode := flag.Bool("swarmMode", true, "Enable swarm mode")
 	kubernetesMode := flag.Bool("kubernetesMode", false, "Enable Kubernetes mode")
 	storagePath := flag.String("storagePath", "", "Enable persistent storage")
+	metricsEnabled := flag.Bool("metricsEnabled", false, "Enable prometheus metrics")
 
 	flag.Parse()
 
@@ -40,7 +41,9 @@ func main() {
 		err := dockerScaler.ScaleDown(key)
 
 		if err != nil {
-			metrics.OnScaleDownError(key)
+			if *metricsEnabled {
+				metrics.OnScaleDownError(key)
+			}
 			log.Warnf("error scaling down %s: %s", key, err.Error())
 		}
 	})
@@ -54,11 +57,29 @@ func main() {
 
 		json.NewDecoder(file).Decode(store)
 		storage.New(file, time.Second*5, store)
+		for _, val := range store.Keys() {
+			requestState, exists := store.Get(val)
+			if !exists {
+				panic(1)
+			}
+			switch requestState.State {
+			case "starting":
+				metrics.OnServiceStateChange(requestState.Name, metrics.Starting)
+			case "started":
+				metrics.OnServiceStateChange(requestState.Name, metrics.Started)
+			default:
+				metrics.OnServiceStateChange(requestState.Name, metrics.Unknown)
+			}
+		}
 	}
 
 	fmt.Printf("Server listening on port 10000, swarmMode: %t, kubernetesMode: %t\n", *swarmMode, *kubernetesMode)
-	http.Handle("/metrics", promhttp.Handler())
-	http.HandleFunc("/", onDemand(dockerScaler, store))
+	fmt.Print(*metricsEnabled)
+	if *metricsEnabled {
+		fmt.Print("toto")
+		http.Handle("/metrics", promhttp.Handler())
+	}
+	http.HandleFunc("/", onDemand(dockerScaler, store, *metricsEnabled))
 	log.Fatal(http.ListenAndServe(":10000", nil))
 }
 
@@ -97,7 +118,11 @@ func getDockerScaler(swarmMode, kubernetesMode bool) scaler.Scaler {
 	panic("invalid mode")
 }
 
-func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(w http.ResponseWriter, r *http.Request) {
+func onDemand(
+	scaler scaler.Scaler,
+	store tinykv.KV[OnDemandRequestState],
+	metricsEnabled bool,
+) func(w http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 
 		name, err := getParam(r.URL.Query(), "name")
@@ -146,18 +171,26 @@ func onDemand(scaler scaler.Scaler, store tinykv.KV[OnDemandRequestState]) func(
 
 		// 2. Store the updated state
 		store.Put(name, requestState, tinykv.ExpiresAfter(timeout))
-		metrics.OnStoreUpdate(name, timeout)
+		if metricsEnabled {
+			metrics.OnStoreUpdate(name, timeout)
+		}
 		// 3. Serve depending on the current state
 
 		switch requestState.State {
 		case "starting":
-			metrics.OnServiceStateChange(name, metrics.Starting)
+			if metricsEnabled {
+				metrics.OnServiceStateChange(name, metrics.Starting)
+			}
 			ServeHTTPRequestState(rw, requestState)
 		case "started":
-			metrics.OnServiceStateChange(name, metrics.Started)
+			if metricsEnabled {
+				metrics.OnServiceStateChange(name, metrics.Started)
+			}
 			ServeHTTPRequestState(rw, requestState)
 		default:
-			metrics.OnServiceStateChange(name, metrics.Unknown)
+			if metricsEnabled {
+				metrics.OnServiceStateChange(name, metrics.Unknown)
+			}
 			ServeHTTPInternalError(rw, fmt.Errorf("unknown state %s", requestState.State))
 		}
 	}
