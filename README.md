@@ -1,3 +1,4 @@
+**Project achieved, please see [acouvreur/sablier](https://github.com/acouvreur/sablier)**
 <h1 align="center">
   <img src="https://blog.alterway.fr/images/traefik.logo.png" alt="Traefik Ondemand Plugin" width="200">
   <br>Traefik Ondemand Service<br>
